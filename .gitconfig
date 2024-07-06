@@ -1,0 +1,34 @@
+[alias]
+    co = checkout
+    ci = commit
+    st = status
+    br = branch
+    hist = log --pretty=format:\"%C(yellow)%h%Creset %C(10)|%C(auto) %s%d %C(green)[%an]%Creset\" --graph --date=short
+    mlgc = log --pretty=format:\"%C(10)%m %C(yellow)%h%Creset %C(10)|%C(auto) %s%d %C(green)[%an]%Creset\" --left-right --no-merges
+    mlg = log --pretty=format:\"%C(10)%m %C(yellow)%h%Creset %C(10)|%C(auto) %s%d %C(green)[%an]%Creset\" --left-right --no-merges HEAD...MERGE_HEAD
+    blc = blame -L '/^<<<</,/^>>>>/'
+    type = cat-file -t
+    dump = cat-file -p
+    unmerged = diff --name-only --diff-filter=U
+[core]
+    #autocrlf = true
+    autocrlf = input
+    askpass = git-gui--askpass
+
+[user]
+    name = Supremist
+    email = sergkarv@gmail.com
+[credential]
+    helper = manager
+[winUpdater]
+    recentlySeenVersion = 2.25.0.windows.1
+[merge]
+    conflictstyle = diff3
+[log]
+    decorate = full
+[rerere]
+    enabled = true
+[blame]
+    # coloring = highlightRecent
+[color]
+    # blame.highlightRecent = blue,12 month ago,green,6 month ago,yellow,3 month ago,white,1 month ago,red
