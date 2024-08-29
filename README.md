@@ -12,9 +12,9 @@ start powershell -Verb RunAs -Args "-c iex (iwr https://raw.githubusercontent.co
 > You should never run untrusted scripts from the internet. Especially, you should not give them admin access.
 > At least read the actual file before running it.
 
-The script will install core software:
+The [bootstrap](https://raw.githubusercontent.com/Supremist/dotfiles/main/scripts/install/01-bootstrap.ps1) script will install core software:
  - Winget (will trigger Microsoft Store update) 
- - Git (will be used from msys2)
+ - Git (MinGit will be used, if not installed)
  - Nushell
 
 Then it will bare clone and checkout this repo into your home, while preserving backup of conflicted files.
