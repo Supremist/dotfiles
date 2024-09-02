@@ -4,23 +4,21 @@ My personal configs and install scripts. It meant to be checked out in home dire
 ## Setup
 
 ### Windows
-Automatic setup from freshly installed system (run from powershell):
+Automatic setup for freshly installed system (run from powershell):
 ```powershell
-start powershell -Verb RunAs -Args "-c iex (iwr https://raw.githubusercontent.com/Supremist/dotfiles/main/scripts/install/01-bootstrap.ps1)"
+$u = "https://raw.githubusercontent.com/Supremist/dotfiles/main/scripts/install/01-bootstrap.ps1"; iex "& {$(iwr $u)} -Url $u"
 ```
 > [!CAUTION]
-> You should never run untrusted scripts from the internet. Especially, you should not give them admin access.
-> At least read the actual file before running it.
+> You should never run untrusted scripts from the internet. At least read the actual file before running it.
 
-The [bootstrap](https://raw.githubusercontent.com/Supremist/dotfiles/main/scripts/install/01-bootstrap.ps1) script will install core software:
- - Winget (will trigger Microsoft Store update) 
- - Git (MinGit will be used, if not installed)
+The [bootstrap](https://raw.githubusercontent.com/Supremist/dotfiles/main/scripts/install/01-bootstrap.ps1) script will install core software (only if not already in installed and in PATH):
+ - Scoop
+ - MinGit
  - Nushell
 
-Then it will bare clone and checkout this repo into your home, while preserving backup of conflicted files.
+Then it will bare clone and checkout the repo into your home, while preserving backup of conflicted files. Repo url and branch is extracted from passed `Url` argument, so the whole script is fork-friendly.
 
 TODO more installations...
 
 ### Linux
 TODO
-

@@ -1,79 +1,89 @@
-# This script will ensure installation of winget, git and nushell, prior to cloning dotfiles repo.
-# Winget should be already installed on Windows 10 or newer. 
-# But if OS is freshly installed, it may be required to trigger Microsoft Store update to get `winget` to be available as command.
-# MinGit will be installed, if git is not found.
+<#
+.SYNOPSIS
+    Dotfiles bootstrap script.
+.DESCRIPTION
+    This script will ensure installation of Scoop, Git and Nushell, prior to cloning dotfiles repo.
+.PARAMETER Url
+    Url of this file on github. Will be parsed to extract username, repo and branch.
+.PARAMETER ScoopDir
+    Specifies Scoop root path.
+    If not specified, Scoop will be installed to '$env:SystemDrive\scoop'.
+.PARAMETER GitDir
+    Directory, where dotfiles repo will be located.
+    If not specified, defaults to '~\.dotfiles'
+#>
+param(
+    [Parameter(Mandatory=$true)] [System.Uri] $Url,
+    [String] $ScoopDir = "$env:SystemDrive\scoop",
+    [String] $GitDir = "~\.dotfiles"
+)
 
-# Get-WmiObject -Class Win32_Product -Filter 'Name like "%Microsoft Office%"' | Select Caption,InstallLocation
-# wmic product where "Name='Exact name of your app'" get InstallLocation
 
 # config
-$env:GIT_WORK_TREE = $env:USERPROFILE # user home
-$env:GIT_DIR = "$env:USERPROFILE\.dotfiles"
-$repo = "Supremist/dotfiles"
-$branch = "main"
-$github_raw = "https://raw.githubusercontent.com"
-$github = "https://github.com"
+$ErrorActionPreference = "Stop"
+$ScoopDir = $ScoopDir -replace '^~', $env:USERPROFILE
+$GitDir = $GitDir -replace '^~', $env:USERPROFILE
 
-$winget_args = @("--silent", "--accept-package-agreements", "--accept-source-agreements", "--exact") # "--scope", "machine"
+$env:GIT_WORK_TREE = $env:USERPROFILE
+$env:GIT_DIR = $GitDir
 
-function Main() {
+$username = $Url.Segments[1].Trim('/')
+$repo = $Url.Segments[2].Trim('/')
+$branch = $Url.Segments[3].Trim('/')
+
+
+function Install-Scoop {
+    Write-Host "Installing Scoop..."
+    iex "& {$(irm get.scoop.sh)} -ScoopDir '$ScoopDir'"
+
+    # TODO remove scoop dir from user path, add it to system path
+    scoop bucket add main
+    scoop install aria2 # will speed up downloads
+}
+
+function Need-Package {
+    param(
+        [String] $BinName, 
+        [String] $Package = $BinName
+    )
+    $cmd = Get-Command $BinName -ErrorAction Ignore
+    if ($?) {
+        Write-Host "Found '$BinName' command at '$($cmd.Source)'"
+    } else {
+        return $Package
+    }
+}
+
+function Main {
     if (Test-Path $env:GIT_DIR) {
         Write-Host "Dotfiles dir already exists"
-        Pause
-        return 0
+        return
     }
     cd $env:USERPROFILE
-
-    if (Get-Command winget -ErrorAction Ignore) {
-        Write-Host "Found command: winget"
-    } else {
-        Write-Host "Command not found: winget"
-        Write-Host "Loading MsStore update script..."
-        Invoke-Expression (Invoke-WebRequest "$github_raw/$repo/$branch/scripts/lib/MsStore.ps1")
-        Update-MsStoreApps @("Microsoft.WindowsStore_8wekyb3d8bbwe", "Microsoft.DesktopAppInstaller_8wekyb3d8bbwe") # must contain winget
-        if (Get-Command winget -ErrorAction Ignore) { 
-            Write-Host "Winget successfully installed."
-        } else {
-            Write-Error "Failed to install winget!"
-            Pause
-            return -1
-        }
-    }
-
-    # TODO handle errors
-    # TODO remove --override after https://github.com/nushell/nushell/issues/13719
-    winget install $winget_args --id "Nushell.Nushell" --override "ALLUSERS=1"
-
-    if (Get-Command git -ErrorAction Ignore) {
-        Write-Host "Found command: git"
-        Write-Host "Cloning dotfiles using preinstalled git..."
-    } else {
-        winget install $winget_args --location "$env:USERPROFILE\MinGit" --id Git.MinGit
-        if ($?) {
-            Write-Host "MinGit successfully installed into '$env:USERPROFILE\MinGit'. Reinstall full version later."
-        } else {
-            Write-Error "Failed to install MinGit!"
-            Pause
-            return -1
-        }
-    }
     
-    # Reload path
-    $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+    $need_install = @()
+    $need_install += Need-Package nu
+    $need_install += Need-Package git mingit
+    
+    if ($need_install) {
+        if (Need-Package scoop) {
+            Install-Scoop
+        }
+        scoop install $need_install
+        if (($LASTEXITCODE -ne 0) -or -not (Get-Command nu -ErrorAction Ignore)) {
+            throw "Failed to install: $need_install. Exit code: $LASTEXITCODE"
+        }
+    }
+
     $next_stage = "02-initial-checkout.nu"
-    $next_stage_file = "$env:TEMP\$next_stage"
+    $next_stage_file = "$env:USERPROFILE\$next_stage"
     $utf8_no_bom = New-Object System.Text.UTF8Encoding $False
     
-    git clone --bare "$github/$repo.git" "$env:GIT_DIR"
+    git clone --bare "https://github.com/$username/$repo.git" "$env:GIT_DIR"
     $stage_data = git show "${branch}:scripts/install/$next_stage"
     [System.IO.File]::WriteAllLines($next_stage_file, $stage_data, $utf8_no_bom)
     nu "$next_stage_file" "$branch"
     nu -e "rm $next_stage_file"
-}
-
-function Pause() {
-    Write-Host -NoNewLine 'Press any key to continue...';
-    $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown');
 }
 
 Main
