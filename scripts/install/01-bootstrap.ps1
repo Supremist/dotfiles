@@ -37,7 +37,6 @@ function Install-Scoop {
     iex "& {$(irm get.scoop.sh)} -ScoopDir '$ScoopDir'"
 
     # TODO remove scoop dir from user path, add it to system path
-    scoop bucket add main
     scoop install aria2 # will speed up downloads
 }
 
@@ -60,6 +59,7 @@ function Main {
         return
     }
     cd $env:USERPROFILE
+    Set-ExecutionPolicy -ExecutionPolicy Unrestricted -Scope Process
     
     $need_install = @()
     $need_install += Need-Package nu
