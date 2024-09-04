@@ -14,27 +14,72 @@
 #>
 param(
     [Parameter(Mandatory=$true)] [System.Uri] $Url,
-    [String] $ScoopDir = "$env:SystemDrive\scoop",
+    [String] $ScoopDir,
     [String] $GitDir = "~\.dotfiles"
 )
 
+function Main {
+    $ErrorActionPreference = "Stop"
+    $GitDir = $GitDir -replace '^~', $env:USERPROFILE
+    
+    if (Test-Path $GitDir) {
+        Write-Host "Dotfiles dir already exists"
+        return
+    }
+    cd $env:USERPROFILE
+ 
+    $need_install = @()
+    $need_install += Need-Package nu
+    $need_install += Need-Package git mingit
+    $need_scoop = Need-Package scoop
+    
+    if ($ScoopDir) {
+        $ScoopDir = $ScoopDir -replace '^~', $env:USERPROFILE
+        if (-not $need_scoop) {
+            Write-Host "Ignoring ScoopDir. Scoop already installed."
+        }
+    } else {
+        $ScoopDir = "$env:SystemDrive\scoop"
+    }
+    
+    if ($need_install) {
+        Set-ExecutionPolicy -ExecutionPolicy Unrestricted -Scope Process
+        if ($need_scoop) {
+            Install-Scoop $ScoopDir
+        }
+        
+        scoop install $need_install
+        if (($LASTEXITCODE -ne 0) -or -not (Get-Command nu -ErrorAction Ignore)) {
+            throw "Failed to install: $need_install. Exit code: $LASTEXITCODE"
+        }
+    } elseif ($need_scoop) {
+        Write-Host "Scoop installation postponed... Seting SCOOP env var"
+        $env:SCOOP = $ScoopDir
+        [Environment]::SetEnvironmentVariable("SCOOP", "$ScoopDir", "User")
+    }
+    
+    $env:GIT_WORK_TREE = $env:USERPROFILE
+    $env:GIT_DIR = $GitDir
 
-# config
-$ErrorActionPreference = "Stop"
-$ScoopDir = $ScoopDir -replace '^~', $env:USERPROFILE
-$GitDir = $GitDir -replace '^~', $env:USERPROFILE
+    $username = $Url.Segments[1].Trim('/')
+    $repo = $Url.Segments[2].Trim('/')
+    $branch = $Url.Segments[3].Trim('/')
 
-$env:GIT_WORK_TREE = $env:USERPROFILE
-$env:GIT_DIR = $GitDir
-
-$username = $Url.Segments[1].Trim('/')
-$repo = $Url.Segments[2].Trim('/')
-$branch = $Url.Segments[3].Trim('/')
-
+    $next_stage = "02-initial-checkout.nu"
+    $next_stage_file = "$env:USERPROFILE\$next_stage"
+    $utf8_no_bom = New-Object System.Text.UTF8Encoding $False
+    
+    git clone --bare "https://github.com/$username/$repo.git" "$env:GIT_DIR"
+    $stage_data = git show "${branch}:scripts/install/$next_stage"
+    [System.IO.File]::WriteAllLines($next_stage_file, $stage_data, $utf8_no_bom)
+    nu "$next_stage_file" "$branch"
+    nu -e "rm $next_stage_file"
+}
 
 function Install-Scoop {
+    param([String] $Location)
     Write-Host "Installing Scoop..."
-    iex "& {$(irm get.scoop.sh)} -ScoopDir '$ScoopDir'"
+    iex "& {$(irm get.scoop.sh)} -ScoopDir '$Location'"
 
     # TODO remove scoop dir from user path, add it to system path
     scoop install aria2 # will speed up downloads
@@ -51,39 +96,6 @@ function Need-Package {
     } else {
         return $Package
     }
-}
-
-function Main {
-    if (Test-Path $env:GIT_DIR) {
-        Write-Host "Dotfiles dir already exists"
-        return
-    }
-    cd $env:USERPROFILE
-    Set-ExecutionPolicy -ExecutionPolicy Unrestricted -Scope Process
-    
-    $need_install = @()
-    $need_install += Need-Package nu
-    $need_install += Need-Package git mingit
-    
-    if ($need_install) {
-        if (Need-Package scoop) {
-            Install-Scoop
-        }
-        scoop install $need_install
-        if (($LASTEXITCODE -ne 0) -or -not (Get-Command nu -ErrorAction Ignore)) {
-            throw "Failed to install: $need_install. Exit code: $LASTEXITCODE"
-        }
-    }
-
-    $next_stage = "02-initial-checkout.nu"
-    $next_stage_file = "$env:USERPROFILE\$next_stage"
-    $utf8_no_bom = New-Object System.Text.UTF8Encoding $False
-    
-    git clone --bare "https://github.com/$username/$repo.git" "$env:GIT_DIR"
-    $stage_data = git show "${branch}:scripts/install/$next_stage"
-    [System.IO.File]::WriteAllLines($next_stage_file, $stage_data, $utf8_no_bom)
-    nu "$next_stage_file" "$branch"
-    nu -e "rm $next_stage_file"
 }
 
 Main
