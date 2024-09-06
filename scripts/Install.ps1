@@ -110,22 +110,24 @@ function Install-Msvc {
     }
     $vswhere = Get-VsWhere
     $results = & "$vswhere" $version -products "Microsoft.VisualStudio.Product.$product" -sort -format json | ConvertFrom-Json
+    $ret = @{}
     if ($results.Length -eq 0) {
         if ($installed_by_winget) {
             throw "Unable to find install location of '$package_id'"
         }
-        
-        $args = "$msvc_installer_args --config `"$config_file`""
+
         Write-Host "Installing $package_id..."
-        winget install $winget_args --id "$package_id" --override "$args"
-        return $null
+        $ret.command = "winget" # run winget from root context to allow correct output of progress
+        $ret.args = @("install") + $winget_args + @("--id", "$package_id", "--override", "$msvc_installer_args --config `"$config_file`"")
+        return $ret
     } elseif ($results.Length -gt 1) {
         Write-Host "WARN Found multiple installed products for package '$package_id'"
     }
     
     $install_path = $results[0].installationPath
     Write-Host "Modifying installation of $package_id..."
-    return Start-Job { & "$using:msvc_installer_dir\setup.exe" modify --installPath "$using:install_path" $using:msvc_installer_args --config "$using:config_file"}
+    $ret.job = Start-Job { & "$using:msvc_installer_dir\setup.exe" modify --installPath "$using:install_path" $using:msvc_installer_args --config "$using:config_file"}
+    return $ret
 }
 
 # Install packages, required for this script
@@ -169,7 +171,11 @@ function Main {
         if ($msvc_list.Count -ge 1) {
             $product = $msvc_list[0]
             $msvc_list = $msvc_list[1..$msvc_list.Count]
-            $msvc_job = Install-Msvc "Microsoft.VisualStudio.$product" "$env:USERPROFILE\scripts\$product.vsconfig"
+            $task = Install-Msvc "Microsoft.VisualStudio.$product" "$env:USERPROFILE\scripts\$product.vsconfig"
+            if ($task.command) {
+                & $task.command $task.args # allow correct progress output
+            }
+            $msvc_job = $task.job
         }
     }
     
@@ -202,7 +208,11 @@ function Main {
     if ($providers -contains "Microsoft.VisualStudio") {
         foreach($product in $msvc_list) {
             Join-Job $msvc_job
-            $msvc_job = Install-Msvc "Microsoft.VisualStudio.$product" "$env:USERPROFILE\scripts\$product.vsconfig"
+            $task = Install-Msvc "Microsoft.VisualStudio.$product" "$env:USERPROFILE\scripts\$product.vsconfig"
+            if ($task.command) {
+                & $task.command $task.args # allow correct progress output
+            }
+            $msvc_job = $task.job
         }
     }
     Join-Job $msvc_job
