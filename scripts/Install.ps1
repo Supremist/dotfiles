@@ -93,7 +93,7 @@ function Install-Msvc {
         [String] $config_file
     )
     
-    winget list --exact --id $package_id | out-null
+    winget list --accept-source-agreements --exact --id $package_id | out-null
     $installed_by_winget = $?
     
     $year_to_version = @{'2017' = 15; '2019' = 16; '2022' = 17}
