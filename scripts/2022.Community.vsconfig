@@ -3,7 +3,8 @@
   "components": [
     "Microsoft.VisualStudio.Component.CoreEditor",
     "Microsoft.VisualStudio.Workload.CoreEditor",
-    "Microsoft.VisualStudio.Workload.NativeDesktop"
+    "Microsoft.VisualStudio.Workload.NativeDesktop",
+    "Microsoft.VisualStudio.Workload.NativeGame"
   ],
   "extensions": []
 }

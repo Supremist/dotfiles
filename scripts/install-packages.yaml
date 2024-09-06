@@ -1,0 +1,20 @@
+---
+providers:
+  winget:
+  scoop:
+  msys2:
+  - build
+  Microsoft.VisualStudio:
+  - 2022.Community
+packages:
+  scoop:
+  - jq
+  - jid
+  - gsudo
+  - nu
+  winget:
+  - wez.wezterm
+  - Mozilla.Firefox
+  - Neovim.Neovim
+  - Google.GoogleDrive
+  msys2:
