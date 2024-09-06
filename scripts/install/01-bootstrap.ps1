@@ -82,7 +82,6 @@ function Install-Scoop {
     iex "& {$(irm get.scoop.sh)} -ScoopDir '$Location'"
 
     # TODO remove scoop dir from user path, add it to system path
-    scoop install aria2 # will speed up downloads
 }
 
 function Need-Package {
