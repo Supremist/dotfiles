@@ -12,9 +12,9 @@ packages:
   - jid
   - gsudo
   - nu
+  - ripgrep
   winget:
   - wez.wezterm
-  - Mozilla.Firefox
   - Neovim.Neovim
   - Google.GoogleDrive
   msys2:
