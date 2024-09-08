@@ -181,7 +181,9 @@ function Main {
     
     # Install Msys2
     if ($providers -contains "msys2") {
-        if (-not (Test-Path $sh -PathType Leaf)) {
+        if (Test-Path $sh -PathType Leaf) {
+            Write-Host "Found command: msys2_shell"
+        } else {
             winget install $winget_args --id MSYS2.MSYS2 --location "$MSYS_ROOT"
         }
         # Install msys2 packages as job
@@ -193,6 +195,27 @@ function Main {
         Receive-Job -Job $scoop_job # show scoop progress to user
     }
     
+    if ($providers -contains "node") {
+        if (Get-Command node -ErrorAction Ignore) {
+            Write-Host "Found command: node"
+        } else {
+            # installs fnm (Fast Node Manager)
+            winget install $winget_args --id Schniz.fnm
+
+            # Reload path
+            $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+
+            # configure fnm environment
+            fnm env --use-on-cd | Out-String | Invoke-Expression
+
+            # download and install Node.js
+            fnm use --install-if-missing 20
+        }
+        foreach ($package in $config.packages.node) {
+            npm install -g "$package"
+        }
+    }
+
     # Install winget packages
     if ($providers -contains "winget")  {
         foreach ($package in $config.packages.winget) {

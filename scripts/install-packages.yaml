@@ -2,6 +2,7 @@
 providers:
   winget:
   scoop:
+  node:
   msys2:
   - build
   Microsoft.VisualStudio:
@@ -18,3 +19,5 @@ packages:
   - Neovim.Neovim
   - Google.GoogleDrive
   msys2:
+  node:
+  - jsondiffpatch
