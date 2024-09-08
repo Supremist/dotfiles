@@ -156,9 +156,15 @@ function Main {
     Install-PrioritizedSoft # sequential
     
     if ($providers -contains "scoop") {
+        $buckets = $providers.scoop
         $packages = $config.packages.scoop
+        $packages_global = $config.packages."scoop.global"
         $scoop_job = Start-Job {
+            foreach ($bucket in $using:buckets) {
+                scoop bucket add "$bucket"
+            }
             scoop install $using:packages
+            scoop install -g $using:packages_global
         }
     }
     

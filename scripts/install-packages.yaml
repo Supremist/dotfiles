@@ -2,6 +2,9 @@
 providers:
   winget:
   scoop:
+  - main
+  - extras
+  - nerd-fonts
   node:
   msys2:
   - build
@@ -14,6 +17,8 @@ packages:
   - gsudo
   - nu
   - ripgrep
+  scoop.global:
+  - JetBrainsMono-NF # nerd font
   winget:
   - wez.wezterm
   - Neovim.Neovim
