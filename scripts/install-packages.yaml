@@ -17,6 +17,9 @@ packages:
   - gsudo
   - nu
   - ripgrep
+  - cmake
+  - fzf
+  - fd
   scoop.global:
   - JetBrainsMono-NF # nerd font
   winget:

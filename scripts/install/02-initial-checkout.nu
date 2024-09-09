@@ -1,19 +1,23 @@
 # This script will checkout requested branch and deal with conflicted files in current working directory
 
-def detect_repo_url[name: string] {
-    let prefix = git remote get-url origin | parse -r "(.*)/(.*?)$" | get capture0
-    return $"$($prefix)/($name).git"
+def detect_repo_url [name: string] {
+    let prefix = git remote get-url origin | parse -r "^(.*)/.*?$" | get capture0.0
+    return $"($prefix)/($name).git"
 }
 
-def clone_nvim_conf {
-    let nvim_conf_dir = "~/AppData/Local/nvim"
+# Prerequisite: cwd = user home
+def clone_nvim_conf [] {
+    let nvim_conf_dir = "AppData/Local/nvim"
     let repo = detect_repo_url "nvim-config"
     if ($nvim_conf_dir | path exists) {
-        let backup = "~/local_dotfile_backup/nvim"
+        let backup = "local_dotfile_backup/nvim"
         mkdir $backup
         mv -f $nvim_conf_dir $backup
     }
-    git clone $repo $nvim_conf_dir
+    do {
+        hide-env -i GIT_DIR GIT_WORK_TREE
+        git clone $repo $nvim_conf_dir
+    }
 }
 
 def main [branch: string] {
