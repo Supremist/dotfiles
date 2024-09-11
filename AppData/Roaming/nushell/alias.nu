@@ -77,3 +77,95 @@ def --env dotfiles-deactivate [] {
 }
 
 alias gitdf = git $"--git-dir=($nu.home-path)\\.dotfiles" $"--work-tree=($nu.home-path)"
+
+export def find_free_name [
+    is_free?: closure
+] {
+    let path = $in
+    print $path
+    let path = if ($path | describe) == string {
+        $path | path parse
+    } else {
+        $path
+    }
+    let is_free = if $is_free == null { 
+        {|new_path| not ($new_path | path join | path exists) }
+    } else { 
+        $is_free
+    }
+    if (do $is_free $path) {
+        return $path
+    }
+    let match = $path.stem | parse -r '^(?<name>.+)_(?<i>\d+)$' | get -i 0
+    mut i = if $match == null { 2 } else { ($match.i | into int) + 1 }
+    let stem = if $match == null { $path.stem } else { $match.name }
+    loop {
+        let new_stem = $"($stem)_($i)"
+        let new_path = $path | update stem { $new_stem }
+        if (do $is_free $new_path) {
+            return $new_path
+        }
+        $i = $i + 1
+    }
+}
+
+export def name_collisions [
+    src_root: string # absolute
+    src_path: string # absolute
+    dest_root: string # absolute
+] {
+    let src_rel = try { $src_path | path relative-to $src_root }
+    if $src_rel == null {
+        return [$src_path]
+    }
+    let src_files = if ($src_path | path type) == dir { 
+        ls -fa ($"($src_path)/**/*" | into glob) | where type == file | get name
+    } else { 
+        [$src_path]
+    }
+    return ($src_files | filter {|src| $dest_root | path join ($src | path relative-to $src_root) | path exists })
+}
+
+
+# Copy $path/$file to $backup_dir/$tag/$file
+# Can accept relative path as $file
+# If $file is not specified, consider $path relative to CWD
+# If $tag already exists - try to merge. If has name collision - rename to $tag_2 and so on...
+export def backup [
+    tag: string
+    path: string
+    file?: string
+] {
+    let backup_dir = $"($nu.home-path)/backup"
+    let cfg_path = $backup_dir | path join "root_dirs.json"
+    let cfg = try { $cfg_path | open } catch { {} }
+    let root = if $file == null { pwd } else { $path } | path expand -n
+    let path = if $file == null { $path } else { $path | path join $file } | path expand -n
+    let tag_dir = $backup_dir | path join $tag | find_free_name {|dest|
+        let dest_str = $dest | path join
+        if ($dest_str | path exists) {
+            let stored_root = $cfg | get -i $dest.stem
+            if $stored_root == null { return false }
+            let collisions = name_collisions $stored_root $path $dest_str
+            #print $"Collisions: ($collisions)"
+            return ($collisions | is-empty)
+        }
+        return true
+    }
+    let tag_changed = ($tag != $tag_dir.stem)
+    let tag = $tag_dir.stem
+    let tag_dir = $tag_dir | path join
+    
+    if ($tag_dir | path exists) {
+        let root = $cfg | get $tag
+    } else {
+        mkdir $tag_dir
+        $cfg | upsert $tag { $root } | save -f $cfg_path
+    }
+    let rel_path = $path | path relative-to $root
+    let dest = $tag_dir | path join $rel_path
+    #print $"Backing up '($path)' into '($tag)'..."
+    mkdir ($dest | path dirname)
+    cp -rf $path $dest
+    return {src: $path, tag: $tag, dest: $dest, root: $root}
+}
