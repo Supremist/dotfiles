@@ -175,4 +175,55 @@ export def "backup save" [
     return {src: $path, tag: $tag, dest: $dest, root: $root}
 }
 
+
+# Get backuped versions of $path
+# Possible usage:
+# backup versions file | get 0 | do { rm $in.name } # remove most recent backup
+# backup versions file | each { rm $in.name } # remove all backups of file
+export def "backup versions" [
+    path: string
+] {
+    let backup_dir = $"($nu.home-path)/backup" # TODO move to config
+    let path = $path | path expand -n
+    let cfg_path = $backup_dir | path join "root_dirs.json"
+    let cfg = try { $cfg_path | open } catch { {} }
+    let cfg = $cfg | transpose tag root | filter {|x| $backup_dir | path join $x.tag | path exists }
+    $cfg | transpose -rid | save -f $cfg_path
+    let cfg = $cfg | each {|x| try {
+        let target = [$backup_dir, $x.tag, ($path | path relative-to $x.root)] | path join
+        ls -lafD $target | get 0 | insert tag { $x.tag }
+    }} | sort-by --reverse created
+    return $cfg
+}
+
+export def "backup restore" [
+    path: string # target file path or path to backuped file
+    # dest?: string # TODO allow custom destination
+    --recent(-r) # restore the most recent versions when multiple verions found
+] {
+    let backup_dir = $"($nu.home-path)/backup" # TODO move to config
+    let path = $path | path expand -n # TODO allow path relative to backup_dir
+    let cfg_path = $backup_dir | path join "root_dirs.json"
+    let cfg = try { $cfg_path | open } catch { {} }
+    let rel_path = try { $path | path relative-to $backup_dir }
+    let result = if $rel_path == null {
+        let versions = backup versions $path
+        let version  = match [($versions | length), $recent] {
+            [0, _] => { error make {msg: $"No backups found for '($path)'."} },
+            [1, _] | [_, true] => { $versions | get 0 },
+            _ => { error make {msg: $"Found multiple backups for '($path)'. Add --recent flag, or review 'backup versions'"} }
+        }
+        { file: $path, backup: $version.name, tag: $version.tag }
+    } else {
+        let rel_path = $rel_path | path split
+        let tag = $rel_path | first
+        let rel_path = $rel_path | skip 1 | path join
+        let file = $cfg | get $tag | path join $rel_path
+        { file: $file, backup: $path, tag: $tag }
+    }
+    mkdir ($result.file | path dirname)
+    cp -rf $result.backup $result.file
+    return $result
+}
+
 alias bkup = backup save
