@@ -82,7 +82,6 @@ export def find_free_name [
     is_free?: closure
 ] {
     let path = $in
-    print $path
     let path = if ($path | describe) == string {
         $path | path parse
     } else {
@@ -131,28 +130,34 @@ export def name_collisions [
 # Can accept relative path as $file
 # If $file is not specified, consider $path relative to CWD
 # If $tag already exists - try to merge. If has name collision - rename to $tag_2 and so on...
-export def backup [
+# --force, -f: overwrite existing backups
+export def "backup save" [
     tag: string
     path: string
     file?: string
+    --force(-f)
 ] {
     let backup_dir = $"($nu.home-path)/backup"
     let cfg_path = $backup_dir | path join "root_dirs.json"
     let cfg = try { $cfg_path | open } catch { {} }
     let root = if $file == null { pwd } else { $path } | path expand -n
     let path = if $file == null { $path } else { $path | path join $file } | path expand -n
-    let tag_dir = $backup_dir | path join $tag | find_free_name {|dest|
-        let dest_str = $dest | path join
-        if ($dest_str | path exists) {
-            let stored_root = $cfg | get -i $dest.stem
-            if $stored_root == null { return false }
-            let collisions = name_collisions $stored_root $path $dest_str
-            #print $"Collisions: ($collisions)"
-            return ($collisions | is-empty)
+    let tag_dir = ($backup_dir | path join $tag | path parse)
+    let tag_dir = if $force {
+        $tag_dir
+    } else {
+        $tag_dir | find_free_name {|dest|
+            let dest_str = $dest | path join
+            if ($dest_str | path exists) {
+                let stored_root = $cfg | get -i $dest.stem
+                if $stored_root == null { return false }
+                let collisions = name_collisions $stored_root $path $dest_str
+                #print $"Collisions: ($collisions)"
+                return ($collisions | is-empty)
+            }
+            return true
         }
-        return true
     }
-    let tag_changed = ($tag != $tag_dir.stem)
     let tag = $tag_dir.stem
     let tag_dir = $tag_dir | path join
     
@@ -166,6 +171,8 @@ export def backup [
     let dest = $tag_dir | path join $rel_path
     #print $"Backing up '($path)' into '($tag)'..."
     mkdir ($dest | path dirname)
-    cp -rf $path $dest
+    cp -r --force=$force --no-clobber=(not $force) $path $dest
     return {src: $path, tag: $tag, dest: $dest, root: $root}
 }
+
+alias bkup = backup save
