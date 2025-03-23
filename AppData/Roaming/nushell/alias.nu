@@ -227,3 +227,14 @@ export def "backup restore" [
 }
 
 alias bkup = backup save
+
+def --wrapped jdc [...argv] {
+    ^jd -color ...$argv | lines | each { |line|
+        let stripped = $line | ansi strip
+        if ($stripped | str starts-with '@ ') {
+            $'(ansi purple)($stripped)(ansi reset)'
+        } else {
+            $line
+        }
+    } | to text
+}
