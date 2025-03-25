@@ -31,38 +31,25 @@ export def start-ssh [] {
     #return (^ssh-agent | capture-win-env script 'C:\msys64\msys2_shell.cmd' "-here" "-ucrt64" "-no-start" "-defterm") # TODO bash
 }
 
-export def capture-win-env [
-        mode: string
-        shell: string
-        ...args: string
+# Usage:
+# capture-env-diff {|get_env, env_file| C:\msys64\msys2_shell.cmd "-here" "-full-path" "-ucrt64" "-no-start" "-defterm" "-c" $"powershell \"($get_env)\" -Output \"($env_file)\"" } -f patch
+export def capture-env-diff [
+    script: closure
+    --format (-f): string = "jd"
 ] {
-    let script_contents = $in | split row "\n" | split row ';' | str trim | filter {$in | is-not-empty } | str join '; ';
-    let start_env = '<ENV_CAPTURE_START_MARKER>'
-    let end_env = '<ENV_CAPTURE_END_MARKER>'
-    let env_var_blacklist = ["SHLVL", "_", "_AST_FEATURES"]
-    let ps_get_env_code = [
-        "[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()", 
-        $"Write-Output '($start_env)'", 
-        "[System.Environment]::GetEnvironmentVariables() | ConvertTo-Json",
-        $"Write-Output '($end_env)'", 
-    ] | str join '; '
-    let ps_get_env = if shell == 'powershell' { $ps_get_env_code } else { $"powershell -c \"($ps_get_env_code)\"" }
-    let before = if $mode == 'full' { (^powershell -c $ps_get_env_code) }
-    let script = [$script_contents, $ps_get_env] | if $mode == 'script' { prepend $ps_get_env } else { $in } | str join "; "
-    #print $shell ...$args "-c" $script
-    let out = [$before, (^$shell ...$args -c $script)] | str join ''
-    | split row $start_env 
-    | split row $end_env
-    | {
-        before: ($in | get 1 | from json)
-        after: ($in | get 3 | from json)
-        stdout: ($in | select 0 2 4 | str join "" | str trim)
+    let script_contents = $in
+    let env_file = (mktemp -t env.XXX.json)
+    let get_env_script = $"($nu.home-path)/scripts/lib/GetEnv.ps1"
+    let before_env = (^powershell $get_env_script | from json | parse-env)
+    $script_contents | do $script $get_env_script $env_file
+    let after_env = (open --raw $env_file | from json | parse-env)
+    $before_env | to json | save -f $env_file
+    let result = match $format {
+        "jd" => ($after_env | to json | jdc  $env_file)
+        "patch" => ($after_env | to json | jd -f=patch $env_file | from json)
     }
-    print $out.stdout
-    return ($out.after 
-    | transpose key value 
-    | filter {|$i| ($out.before | get -i $i.key) != $i.value and $i.key not-in $env_var_blacklist}
-    | transpose --header-row --as-record)
+    rm $env_file
+    $result
 }
 
 def --env dotfiles-activate [] {

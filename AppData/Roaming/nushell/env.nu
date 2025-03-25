@@ -62,16 +62,46 @@ $env.PROMPT_MULTILINE_INDICATOR = {|| "::: " }
 # - converted from a string to a value on Nushell startup (from_string)
 # - converted from a value back to a string when running external commands (to_string)
 # Note: The conversions happen *after* config.nu is loaded
-$env.ENV_CONVERSIONS = {
-    "PATH": {
-        from_string: { |s| $s | split row (char esep) | path expand --no-symlink }
-        to_string: { |v| $v | path expand --no-symlink | str join (char esep) }
-    }
-    "Path": {
-        from_string: { |s| $s | split row (char esep) | path expand --no-symlink }
-        to_string: { |v| $v | path expand --no-symlink | str join (char esep) }
-    }
+let path_list = {
+    from_string: { |s| $s | split row (char esep) | path expand --no-symlink | str trim -r -c (char psep)}
+    to_string: { |v| $v | path expand --no-symlink | str trim -r -c (char psep) | str join (char esep) }
 }
+
+let path = {
+    from_string: { |s| $s | path expand --no-symlink | str trim -r -c (char psep)}
+    to_string: { |v| $v | path expand --no-symlink | str trim -r -c (char psep) }
+}
+
+$env.ENV_CONVERSIONS = {
+    "PATH": $path_list
+    "Path": $path_list
+    "PSModulePath": $path_list
+    "PATHEXT": {
+        from_string: {|s| $s | split row (char esep) }
+        to_string: {|v| $v | str join (char esep) }
+    }
+    "WSLENV": {
+        from_string: {|s| $s | split row ':' }
+        to_string: {|v| $v | str join ':' }
+    }
+    "PWD": $path
+    "TEMP": $path
+    "TMP": $path
+}
+
+export def parse-env [] {
+    $in | transpose name value | each {|p|
+        let name = ($p.name | str upcase)
+        let conv = ($env.ENV_CONVERSIONS | get -i $name)
+        if ($conv | is-empty) {
+            {name: $name, value: $p.value}
+        } else {
+            {name: $name, value: (do $conv.from_string $p.value)}
+        }
+    } | transpose --header-row --as-record
+}
+
+alias get-env = ^powershell ~/scripts/lib/GetEnv.ps1
 
 # Directories to search for scripts when calling source or use
 # The default for this is $nu.default-config-dir/scripts
