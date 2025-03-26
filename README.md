@@ -6,7 +6,7 @@ My personal configs and install scripts. It meant to be checked out in home dire
 ### Windows
 Automatic setup for freshly installed system (run from powershell):
 ```powershell
-$u = "https://raw.githubusercontent.com/Supremist/dotfiles/main/scripts/install/01-bootstrap.ps1"; iex "& {$(iwr $u)} -Url $u"
+"https://raw.githubusercontent.com/Supremist/dotfiles/main/scripts/install/01-bootstrap.ps1" | %{iex "& {$(iwr $_)} -Url $_"}
 ```
 > [!CAUTION]
 > You should never run untrusted scripts from the internet. At least read the actual file before running it.
