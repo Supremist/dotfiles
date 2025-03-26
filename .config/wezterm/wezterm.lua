@@ -76,6 +76,7 @@ config.window_padding = {
 config.window_decorations = "RESIZE"
 config.window_background_opacity = 0.8
 config.scrollback_lines = 4000
+config.unicode_version = 14
 
 
 wezterm.on('gui-startup', function(cmd)
