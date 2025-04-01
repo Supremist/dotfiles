@@ -63,7 +63,7 @@ $env.PROMPT_MULTILINE_INDICATOR = {|| "::: " }
 # - converted from a value back to a string when running external commands (to_string)
 # Note: The conversions happen *after* config.nu is loaded
 let path_list = {
-    from_string: { |s| $s | split row (char esep) | path expand --no-symlink | str trim -r -c (char psep)}
+    from_string: { |s| ($s | split row (char esep) | path expand --no-symlink | str trim -r -c (char psep)) | uniq -i }
     to_string: { |v| $v | path expand --no-symlink | str trim -r -c (char psep) | str join (char esep) }
 }
 
@@ -77,8 +77,8 @@ $env.ENV_CONVERSIONS = {
     "Path": $path_list
     "PSModulePath": $path_list
     "PATHEXT": {
-        from_string: {|s| $s | split row (char esep) }
-        to_string: {|v| $v | str join (char esep) }
+        from_string: {|s| $s | split row (char esep) | str trim -l -c '.' }
+        to_string: {|v| $v | each {'.' + $in} | str join (char esep) }
     }
     "WSLENV": {
         from_string: {|s| $s | split row ':' }
@@ -88,6 +88,8 @@ $env.ENV_CONVERSIONS = {
     "TEMP": $path
     "TMP": $path
 }
+# Path may be a list at this point, so force the new ENV_CONVERSION
+$env.Path = do $path_list.from_string (do $path_list.to_string $env.Path)
 
 export def parse-env [] {
     $in | transpose name value | each {|p|
