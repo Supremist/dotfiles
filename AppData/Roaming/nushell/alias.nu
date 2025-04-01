@@ -40,16 +40,85 @@ export def capture-env-diff [
     let script_contents = $in
     let env_file = (mktemp -t env.XXX.json)
     let get_env_script = $"($nu.home-path)/scripts/lib/GetEnv.ps1"
-    let before_env = (^powershell $get_env_script | from json | parse-env)
     $script_contents | do $script $get_env_script $env_file
+    env-diff $env_file --format $format
+}
+
+export def env-diff [
+    env_file: string
+    --format (-f): string = "jd"
+] {
+    let get_env_script = $"($nu.home-path)/scripts/lib/GetEnv.ps1"
+    let old_env_file = (^powershell $get_env_script | from json | parse-env | to json | save-tmp old-env.XXX.json)
     let after_env = (open --raw $env_file | from json | parse-env)
-    $before_env | to json | save -f $env_file
     let result = match $format {
-        "jd" => ($after_env | to json | jdc  $env_file)
-        "patch" => ($after_env | to json | jd -f=patch $env_file | from json)
+        "jd" => ($after_env | to json | jdc  $old_env_file)
+        "patch" => ($after_env | to json | jd -f=patch $old_env_file | from json)
     }
-    rm $env_file
+    rm $old_env_file
     $result
+}
+
+export def collect-files [
+    paths: list<string>
+    exts: list<string> = []
+] {
+    mut files = ([])
+    let exts = ($exts | str downcase)
+    for path in $paths {
+        if (not ($path | path exists)) {
+            print $"Does not exists: ($path)"
+            continue
+        }
+        let matched_files = (ls -fa $path | where type == "file" | each { |file|
+            let parsed = ($file.name | path parse | update extension { str downcase })
+            if ($parsed.extension in $exts) or ($exts | is-empty) {
+                $file | merge $parsed | update stem { str downcase }
+            }
+        })
+        $files = ($files ++ $matched_files)
+    }
+    $files
+}
+
+export def path-conflicts [
+    exts: list<string> = []
+] {
+    #let exts = ['dll', 'so', '', 'rll', 'cpl', 'lua', 'drv', 'ocx', 'efi', 'ps1', 'psd1', 'psm1', 'def', 'lib']
+    let win_path = (['C:\Windows', 'C:\Windows\System32', 'C:\Users\sergk\AppData\Local\Microsoft\WindowsApps'] | str downcase)
+    let files = (collect-files $env.PATH $exts)
+    let conflicts = ($files | group-by --to-table stem | get items | filter { ($in.parent | uniq | length) > 1})
+    #let conflicts = ($conflicts | filter { ($in.parent | str downcase | filter {$in not-in $win_path} | length) > 0})
+    $conflicts
+}
+
+export def tmp-name [
+    template?: string
+    --rand (-r): string = 'X'
+] {
+    $env.TEMP + (char psep) + if ($template | is-empty) {
+        "tmp-" + (random chars -l 6)
+    } else if ($rand | is-empty) {
+        $template
+    } else {
+        $template | split row '' | each {|char|
+            if $char == $rand {
+                (random chars -l 1)
+            } else {
+                $char
+            }
+        } | str join ''
+    }
+}
+
+export def save-tmp [
+    template?: string
+    --rand (-r): string = 'X'
+] {
+    let content = $in
+    let file_path = tmp-name $template --rand $rand
+    $in | save -f $file_path
+    $file_path
 }
 
 def --env dotfiles-activate [] {
@@ -215,8 +284,39 @@ export def "backup restore" [
 
 alias bkup = backup save
 
+def --wrapped jd [
+    --inverted (-i)
+    --color (-c)
+    to
+    ...argv
+] {
+    let from = $in
+    let file_name = (tmp-name obj.XXX.json)
+    let input = if $inverted {
+        $from | to json | save -f $file_name
+        $to | to json
+    } else {
+        $to | to json | save -f $file_name
+        $from | to json
+    }
+    let out = if $color {
+        $input | ^jd -f jd -color ...$argv  $file_name | lines | each { |line|
+            let stripped = $line | ansi strip
+            if ($stripped | str starts-with '@ ') {
+                $'(ansi purple)($stripped)(ansi reset)'
+            } else {
+                $line
+            }
+        } | to text
+    } else {
+        $input | ^jd -f patch ...$argv $file_name | from json
+    }
+    rm $file_name
+    $out
+}
+
 def --wrapped jdc [...argv] {
-    ^jd -color ...$argv | lines | each { |line|
+    ^jd -f jd -color ...$argv | lines | each { |line|
         let stripped = $line | ansi strip
         if ($stripped | str starts-with '@ ') {
             $'(ansi purple)($stripped)(ansi reset)'
@@ -224,4 +324,21 @@ def --wrapped jdc [...argv] {
             $line
         }
     } | to text
+}
+
+def --wrapped fsutil [cmd, subcmd, ...argv] {
+    let cmd = ($cmd | str downcase)
+    let subcmd = ($subcmd | str downcase)
+    match [$cmd, $subcmd] {
+        ['reparsepoint', 'query'] => {
+            let output = (^fsutil $cmd $subcmd ...$argv | lines | filter {$in | is-not-empty} | split list -r '(Data:)|(Reparse Data:)')
+            let result = $output.0 | split column ':' | str trim | transpose -rid
+            let data = ($output.1 | each { $in | str substring 7..54 } | str join '' | str replace -a ' ' '' | decode hex)
+            let decoded = ($data | bytes at 4.. | bytes replace -a 0x[0000] 0x[000a] | decode utf-16 | lines)
+            $result | insert Data $data | insert Decoded $decoded
+        }
+        _ => {
+            ^fsutil $cmd $subcmd ...$argv
+        }
+    }
 }
