@@ -342,3 +342,8 @@ def --wrapped fsutil [cmd, subcmd, ...argv] {
         }
     }
 }
+
+def --wrapped scoop [...argv] {
+    let args = ($argv | each { $"\"($in)\"" } | str join ' ')
+    ^powershell -c $"scoop ($args)"
+}
