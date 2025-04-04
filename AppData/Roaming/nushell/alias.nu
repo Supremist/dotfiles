@@ -368,15 +368,17 @@ def check-proc [] {
 def reg [
     command: string
     key? : string
+    --expand (-e)
 ] {
     let values = $in
+    let flags = if $expand { '-Expand' } else {''}
     if ($key | is-empty) {
         if $command == 'set' {
             error make {msg: "Argument 'key' should be specified for 'set' command"}
         }
         # take key from input
-        ^powershell $'($nu.home-path)/scripts/lib/Reg.ps1 "($command)" "($values)"' | complete | check-proc
+        ^powershell $'($nu.home-path)/scripts/lib/Reg.ps1 "($command)" "($values)" ($flags)' | complete | check-proc
     } else {
-        $values | to json | ^powershell $'($nu.home-path)/scripts/lib/Reg.ps1 "($command)" "($key)"' | complete | check-proc
+        $values | to json | ^powershell $'($nu.home-path)/scripts/lib/Reg.ps1 "($command)" "($key)" ($flags)' | complete | check-proc
     } | from json
 }

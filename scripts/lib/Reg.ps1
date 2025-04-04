@@ -1,12 +1,13 @@
 # reg create key
 # reg remove key
-# reg get key
+# reg get key --expand
 # reg set key values
 # reg ls key // get subkeys
 
 param (
     [string]$Command,
-    [string]$Key
+    [string]$Key,
+    [switch]$Expand
 )
 
 $ErrorActionPreference = "Stop"
@@ -31,11 +32,17 @@ function Remove-Key {
 }
 
 function Get-Values {
-    param ([string]$Key)
+    param ([string]$Key, [switch]$Expand)
     $regKey = Get-Item -Path $Key
+    $option = if ($Expand) {
+        [Microsoft.Win32.RegistryValueOptions]::None
+    } else {
+        [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames
+    }
     $result = @()
     foreach ($name in $regKey.GetValueNames()) {
-        $result += @{"name" = $name; "kind" = $regKey.GetValueKind($name).ToString(); "value" = $regKey.GetValue($name) }
+        $value = $regKey.GetValue($name, $null, $option)
+        $result += @{"name" = $name; "kind" = $regKey.GetValueKind($name).ToString(); "value" = $value }
     }
     $regKey.Close()
     $result | ConvertTo-Json
@@ -95,7 +102,7 @@ function List-Subkeys {
 switch ($Command.ToLower()) {
     "create" { Create-Key -Key $Key }
     {($_ -eq "rm") -or ($_ -eq "remove")} { Remove-Key -Key $Key }
-    "get" { Get-Values -Key $Key }
+    "get" { Get-Values -Key $Key -Expand:$Expand }
     "set" { Set-Values -Key $Key -JsonValues ([Console]::In.ReadToEnd()) }
     {($_ -eq "ls") -or ($_ -eq "list")} { List-Subkeys -Key $Key }
     default { Write-Error "Unknown command: $Command" }
