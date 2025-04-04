@@ -41,6 +41,26 @@ function Get-Values {
     $result | ConvertTo-Json
 }
 
+function Detect-Kind {
+    param ($regKey, $obj)
+    if ($obj.kind) {
+        return $obj.kind
+    }
+    try {
+        return $regKey.GetValueKind($obj.name)
+    } catch [System.IO.IOException] {
+        # value name not found, ignore
+    }
+    if ($obj.value.GetType().Name -eq "String") {
+        if ($obj.value.Contains('%')) {
+            return [Microsoft.Win32.RegistryValueKind]::ExpandString
+        } else {
+            return [Microsoft.Win32.RegistryValueKind]::String
+        }
+    }
+    return [Microsoft.Win32.RegistryValueKind]::Unknown
+}
+
 function Set-Values {
     param ([string]$Key, [string]$JsonValues)
     Check-RegistryKey $Key
@@ -55,7 +75,8 @@ function Set-Values {
         if ($obj.value -eq $null) {
             $regKey.DeleteValue($obj.name, $false)
         } else {
-            $regKey.SetValue($obj.name, $obj.value, $obj.kind)
+            $kind = Detect-Kind $regKey $obj
+            $regKey.SetValue($obj.name, $obj.value, $kind)
         }
     }
     $regKey.Close()
