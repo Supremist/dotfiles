@@ -347,3 +347,36 @@ def --wrapped scoop [...argv] {
     let args = ($argv | each { $"\"($in)\"" } | str join ' ')
     ^powershell -c $"scoop ($args)"
 }
+
+def check-proc [] {
+    let result = $in
+    let span = (metadata $in).span
+    if ($result.stderr | is-not-empty) or ($result.exit_code != 0) {
+        print $result.stdout
+        error make {
+            msg: $"Exit code: ($result.exit_code)\n($result.stderr)",
+            label: {
+                text: "from this external process",
+                span: $span
+            }
+        }
+    } else {
+        return $result.stdout
+    }
+}
+
+def reg [
+    command: string
+    key? : string
+] {
+    let values = $in
+    if ($key | is-empty) {
+        if $command == 'set' {
+            error make {msg: "Argument 'key' should be specified for 'set' command"}
+        }
+        # take key from input
+        ^powershell $'($nu.home-path)/scripts/lib/Reg.ps1 "($command)" "($values)"' | complete | check-proc
+    } else {
+        $values | to json | ^powershell $'($nu.home-path)/scripts/lib/Reg.ps1 "($command)" "($key)"' | complete | check-proc
+    } | from json
+}
