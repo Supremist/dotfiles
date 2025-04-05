@@ -81,14 +81,28 @@ export def collect-files [
     $files
 }
 
+def filter-shadowed-paths [] {
+    mut result = ($in | str downcase)
+    let shadowing_allowed = ([
+        ['C:\Windows\System32', 'C:\Windows'],
+        ['C:\msys64\ucrt64\bin', 'C:\msys64\usr\bin']
+    ] | each {$in | str downcase})
+    for shadows in $shadowing_allowed {
+        if $shadows.0 in $result {
+            $result = ($result | filter { $in not-in ($shadows | skip 1)})
+        }
+    }
+    return $result
+}
+
+
 export def path-conflicts [
     exts: list<string> = []
 ] {
     #let exts = ['dll', 'so', '', 'rll', 'cpl', 'lua', 'drv', 'ocx', 'efi', 'ps1', 'psd1', 'psm1', 'def', 'lib']
     let win_path = (['C:\Windows', 'C:\Windows\System32', 'C:\Users\sergk\AppData\Local\Microsoft\WindowsApps'] | str downcase)
     let files = (collect-files $env.PATH $exts)
-    let conflicts = ($files | group-by --to-table stem | get items | filter { ($in.parent | uniq | length) > 1})
-    #let conflicts = ($conflicts | filter { ($in.parent | str downcase | filter {$in not-in $win_path} | length) > 0})
+    let conflicts = ($files | group-by --to-table stem | get items | filter { ($in.parent | filter-shadowed-paths | uniq | length) > 1})
     $conflicts
 }
 
