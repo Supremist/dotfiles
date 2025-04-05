@@ -396,3 +396,44 @@ def reg [
         $values | to json | ^powershell $'($nu.home-path)/scripts/lib/Reg.ps1 "($command)" "($key)" ($flags)' | complete | check-proc
     } | from json
 }
+
+export def apply-diff [
+    diff
+    --skip-test
+    --ignore-case
+] {
+    let original = $in
+    let diff = if ($ignore_case) {
+        $diff | update path { str upcase }
+    } else {
+        $diff
+    }
+    mut obj = if ($ignore_case and ($original | describe -d | get type) == 'record') {
+        $original | transpose name value | update name { str upcase } | transpose -rid
+    } else {
+        $original
+    }
+    for entry in ($diff | enumerate | flatten) {
+        let path = ($entry.path | split row '/' | skip 1 | each {|part| try { $part | into int } catch { $part } } | into cell-path)
+        match $entry.op {
+            'test' => {
+                if not $skip_test {
+                    let value = ($obj | get $path)
+                    if $value != $entry.value {
+                        error make {msg: $"Failed to apply diff #($entry.index) at '($entry.path)'.\nExpected: '($entry.value)'\nFound: '($value)'"}
+                    }
+                }
+            }
+            'remove' => { $obj = ($obj | reject $path) }
+            'add' => { $obj = ($obj | insert $path $entry.value) }
+            _ => { error make {msg: $"Unknown command '($entry.op)'"} }
+        }
+    }
+    $obj
+}
+
+export def --env load-env-diff [diff] {
+    let changed = ($diff | get path | each { split row '/' | get 1 } | uniq | str upcase)
+    let env_diff = ($env | apply-diff $diff --skip-test --ignore-case | select -i ...$changed)
+    load-env $env_diff
+}
