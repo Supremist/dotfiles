@@ -135,19 +135,6 @@ export def save-tmp [
     $file_path
 }
 
-def --env dotfiles-activate [] {
-    $env.GIT_DIR = $"($nu.home-path)\\.dotfiles"
-    $env.GIT_WORK_TREE = $nu.home-path
-    cd $nu.home-path
-}
-
-def --env dotfiles-deactivate [] {
-    hide-env GIT_DIR
-    hide-env GIT_WORK_TREE
-}
-
-alias gitdf = git $"--git-dir=($nu.home-path)\\.dotfiles" $"--work-tree=($nu.home-path)"
-
 export def find_free_name [
     is_free?: closure
 ] {
