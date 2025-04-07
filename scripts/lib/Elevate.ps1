@@ -14,7 +14,7 @@ function Start-PshProcess {
     }
     
     $Command = @"
-Set-ExecutionPolicy -ExecutionPolicy Unrestricted -Scope Process; cd "$Dir"; & "$Cmd" $Args
+Set-ExecutionPolicy Unrestricted -Scope Process; cd "$Dir"; & "$Cmd" $Args
 "@
 
     Write-Host $Command
@@ -33,6 +33,22 @@ function Is-Admin {
     return $myWindowsPrincipal.IsInRole($adminRole)
 }
 
+function Get-ArgumentList {
+    param($Invocation)
+    $argList = @()
+    foreach ($key in $Invocation.BoundParameters.Keys) {
+        $value = $Invocation.BoundParameters[$key]
+
+        if ($value -is [switch] -or $value -is [bool]) {
+            if ($value) { $argList += "-$key" }
+        } else {
+            $argList += "-$key", "`"$value`""
+        }
+    }
+    $argList += $Invocation.UnboundArguments
+    return $argList
+}
+
 function Elevate-Shell {
     param(
         $Invocation,
@@ -42,7 +58,7 @@ function Elevate-Shell {
     if (-not (Is-Admin)) {
         # We are not running "as Administrator" - so relaunch as administrator
         Write-Host "Starting elevated powershell process..."
-        Start-PshProcess -Verb RunAs -Cmd "$($Invocation.MyCommand.Path)" -Args $Invocation.UnboundArguments
+        Start-PshProcess -Verb RunAs -Cmd "$($Invocation.MyCommand.Path)" -Args (Get-ArgumentList $Invocation)
         
         Start-Sleep -Seconds $PauseFor
         # Exit from the current, unelevated, process

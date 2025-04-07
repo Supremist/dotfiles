@@ -1,3 +1,8 @@
+param (
+    [string]$ConfigFile,
+    [switch]$Update
+)
+
 $ErrorActionPreference = "Stop"
 
 . ~/scripts/lib/Elevate.ps1
@@ -13,7 +18,7 @@ $MSYS_PKGS = "$MSYS_ROOT\opt\packages"
 $sh = "$MSYS_ROOT\msys2_shell.cmd"
 $sh_args = @("-no-start", "-defterm", "-here")
 
-$config =  nu -c "open ~\scripts\install-packages.yaml | to json" | ConvertFrom-Json
+$config =  nu -c "open `"$ConfigFile`"| to json" | ConvertFrom-Json
 $providers = $config.providers.PsObject.Properties.Name
 
 
@@ -126,7 +131,12 @@ function Install-Msvc {
     
     $install_path = $results[0].installationPath
     Write-Host "Modifying installation of $package_id..."
-    $ret.job = Start-Job { & "$using:msvc_installer_dir\setup.exe" modify --installPath "$using:install_path" $using:msvc_installer_args --config "$using:config_file"}
+    $ret.job = Start-Job {
+        if ($using:Update) {
+            & "$using:msvc_installer_dir\setup.exe" update --installPath "$using:install_path" $using:msvc_installer_args
+        }
+        & "$using:msvc_installer_dir\setup.exe" modify --installPath "$using:install_path" $using:msvc_installer_args --config "$using:config_file"
+    }
     return $ret
 }
 
@@ -165,6 +175,10 @@ function Main {
             }
             scoop install $using:packages
             scoop install -g $using:packages_global
+            if ($using:Update) {
+                scoop update $using:packages
+                scoop update -g $using:packages_global
+            }
         }
     }
     
@@ -224,8 +238,12 @@ function Main {
 
     # Install winget packages
     if ($providers -contains "winget")  {
+        $args = @()
+        if (-not $Update) {
+            $args += "--no-upgrade"
+        }
         foreach ($package in $config.packages.winget) {
-            winget install $winget_args --id $package
+            winget install $winget_args $args --id $package
         }
     }
     
