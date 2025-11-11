@@ -424,3 +424,11 @@ export def --env load-env-diff [diff] {
     let env_diff = ($env | apply-diff $diff --skip-test --ignore-case | select -i ...$changed)
     load-env $env_diff
 }
+
+export def --env source-sh-env [file_name=".env"] {
+    # quick and dirty loading of .env files without interpreting them
+    let new_env = open $file_name | lines 
+        | filter {|line| not ($line | str starts-with '#')} # ignore comments
+        | split column '=' name value | transpose -rid 
+    load-env $new_env
+}
