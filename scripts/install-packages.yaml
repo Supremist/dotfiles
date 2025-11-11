@@ -20,12 +20,13 @@ packages:
   - cmake
   - fzf
   - fd
+  - jd
   scoop.global:
   - JetBrainsMono-NF # nerd font
   winget:
   - wez.wezterm
-  - Neovim.Neovim
+  - Neovim.Neovim # not scoop, because it also installs vcc redist
   - Google.GoogleDrive
   msys2:
-  node:
-  - jsondiffpatch
+#  node:
+#  - jsondiffpatch
