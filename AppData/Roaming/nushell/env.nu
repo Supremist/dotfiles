@@ -94,7 +94,7 @@ $env.Path = do $path_list.from_string (do $path_list.to_string $env.Path)
 export def parse-env [] {
     $in | transpose name value | each {|p|
         let name = ($p.name | str upcase)
-        let conv = ($env.ENV_CONVERSIONS | get -i $name)
+        let conv = ($env.ENV_CONVERSIONS | get -o $name)
         if ($conv | is-empty) {
             {name: $name, value: $p.value}
         } else {

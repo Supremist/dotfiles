@@ -1,5 +1,5 @@
 export-env {
-    $env.VSINSTALLDIR = (vswhere -latest -format value -property installationPath) + '\'
+    $env.VSINSTALLDIR = (vswhere -latest -format value -property installationPath) + (char psep)
 }
 
 export def --env vcvars [

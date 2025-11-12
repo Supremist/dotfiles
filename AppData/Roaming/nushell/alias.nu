@@ -1,6 +1,6 @@
 #export def ps-table [] { # better to use detect columns https://www.nushell.sh/cookbook/parsing.html
 #    let $ps_lines = $in | lines
-#    let $names = $ps_lines | first | split row ' ' | filter { $in | is-not-empty} | str downcase
+#    let $names = $ps_lines | first | split row ' ' | where { $in | is-not-empty} | str downcase
 #    return ($ps_lines | skip 1 | split column --collapse-empty ' ' ...$names)
 #}
 
@@ -10,7 +10,7 @@
 
 export def start-ssh [] {
     let agent_procs = ^ps | detect columns | join -r (ps) WINPID pid | where name =~ 'ssh-agent(\.exe)?' 
-    let agent_pids = $agent_procs | select PID pid | values | flatten | filter {$in | is-not-empty} | uniq
+    let agent_pids = $agent_procs | select PID pid | values | flatten | where {$in | is-not-empty} | uniq
     let temps = [$env.TEMP, $env.TMP, (cygpath -w /tmp)] | uniq 
     print $agent_pids
     for pid in $agent_pids {
@@ -89,7 +89,7 @@ def filter-shadowed-paths [] {
     ] | each {$in | str downcase})
     for shadows in $shadowing_allowed {
         if $shadows.0 in $result {
-            $result = ($result | filter { $in not-in ($shadows | skip 1)})
+            $result = ($result | where { $in not-in ($shadows | skip 1)})
         }
     }
     return $result
@@ -102,7 +102,7 @@ export def path-conflicts [
     #let exts = ['dll', 'so', '', 'rll', 'cpl', 'lua', 'drv', 'ocx', 'efi', 'ps1', 'psd1', 'psm1', 'def', 'lib']
     let win_path = (['C:\Windows', 'C:\Windows\System32', 'C:\Users\sergk\AppData\Local\Microsoft\WindowsApps'] | str downcase)
     let files = (collect-files $env.PATH $exts)
-    let conflicts = ($files | group-by --to-table stem | get items | filter { ($in.parent | filter-shadowed-paths | uniq | length) > 1})
+    let conflicts = ($files | group-by --to-table stem | get items | where { ($in.parent | filter-shadowed-paths | uniq | length) > 1})
     $conflicts
 }
 
@@ -152,7 +152,7 @@ export def find_free_name [
     if (do $is_free $path) {
         return $path
     }
-    let match = $path.stem | parse -r '^(?<name>.+)_(?<i>\d+)$' | get -i 0
+    let match = $path.stem | parse -r '^(?<name>.+)_(?<i>\d+)$' | get -o 0
     mut i = if $match == null { 2 } else { ($match.i | into int) + 1 }
     let stem = if $match == null { $path.stem } else { $match.name }
     loop {
@@ -179,7 +179,7 @@ export def name_collisions [
     } else { 
         [$src_path]
     }
-    return ($src_files | filter {|src| $dest_root | path join ($src | path relative-to $src_root) | path exists })
+    return ($src_files | where {|src| $dest_root | path join ($src | path relative-to $src_root) | path exists })
 }
 
 
@@ -206,7 +206,7 @@ export def "backup save" [
         $tag_dir | find_free_name {|dest|
             let dest_str = $dest | path join
             if ($dest_str | path exists) {
-                let stored_root = $cfg | get -i $dest.stem
+                let stored_root = $cfg | get -o $dest.stem
                 if $stored_root == null { return false }
                 let collisions = name_collisions $stored_root $path $dest_str
                 #print $"Collisions: ($collisions)"
@@ -244,7 +244,7 @@ export def "backup versions" [
     let path = $path | path expand -n
     let cfg_path = $backup_dir | path join "root_dirs.json"
     let cfg = try { $cfg_path | open } catch { {} }
-    let cfg = $cfg | transpose tag root | filter {|x| $backup_dir | path join $x.tag | path exists }
+    let cfg = $cfg | transpose tag root | where {|x| $backup_dir | path join $x.tag | path exists }
     $cfg | transpose -rid | save -f $cfg_path
     let cfg = $cfg | each {|x| try {
         let target = [$backup_dir, $x.tag, ($path | path relative-to $x.root)] | path join
@@ -332,7 +332,7 @@ def --wrapped fsutil [cmd, subcmd, ...argv] {
     let subcmd = ($subcmd | str downcase)
     match [$cmd, $subcmd] {
         ['reparsepoint', 'query'] => {
-            let output = (^fsutil $cmd $subcmd ...$argv | lines | filter {$in | is-not-empty} | split list -r '(Data:)|(Reparse Data:)')
+            let output = (^fsutil $cmd $subcmd ...$argv | lines | where {$in | is-not-empty} | split list -r '(Data:)|(Reparse Data:)')
             let result = $output.0 | split column ':' | str trim | transpose -rid
             let data = ($output.1 | each { $in | str substring 7..54 } | str join '' | str replace -a ' ' '' | decode hex)
             let decoded = ($data | bytes at 4.. | bytes replace -a 0x[0000] 0x[000a] | decode utf-16 | lines)
@@ -421,14 +421,14 @@ export def apply-diff [
 
 export def --env load-env-diff [diff] {
     let changed = ($diff | get path | each { split row '/' | get 1 } | uniq | str upcase)
-    let env_diff = ($env | apply-diff $diff --skip-test --ignore-case | select -i ...$changed)
+    let env_diff = ($env | apply-diff $diff --skip-test --ignore-case | select -o ...$changed)
     load-env $env_diff
 }
 
 export def --env source-sh-env [file_name=".env"] {
     # quick and dirty loading of .env files without interpreting them
     let new_env = open $file_name | lines 
-        | filter {|line| not ($line | str starts-with '#')} # ignore comments
+        | where {|line| not ($line | str starts-with '#')} # ignore comments
         | split column '=' name value | transpose -rid 
     load-env $new_env
 }
