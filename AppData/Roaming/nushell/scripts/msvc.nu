@@ -10,6 +10,7 @@ export def --env vcvars [
     --vc: string
     --spectre
     --debug: int = 0
+    --dry-run
 ] {
     let arch = ($arch | str downcase | if ($in == 'x64') { 'amd64' } else { $in } )
     let host_arch = ($host_arch | str downcase | if ($in == 'x64') { 'amd64' } else { $in } )
@@ -47,13 +48,13 @@ export def --env vcvars [
     }
     let args = ($args | str join ' ')
     with-env $tmp_env {
-        ^powershell $get_env | from json | parse-env | to json | save -f $before
+        ^powershell $get_env | from json | parse-env --upcase | to json | save -f $before
         print $"RUNNING: ($env.__VCVARS) ($args)"
         cmd.exe /C $"call %__VCVARS% ($args) & call powershell %__GETENV%"
     }
-    open --raw $after  | from json | parse-env | to json | save -f $after
+    open --raw $after  | from json | parse-env --upcase | to json | save -f $after
     let diff = (^jd -f=patch $before $after | from json)
     rm $before
     rm $after
-    load-env-diff $diff
+    load-env-diff --dry-run=$dry_run $diff
 }

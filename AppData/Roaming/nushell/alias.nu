@@ -396,7 +396,9 @@ export def apply-diff [
         $diff
     }
     mut obj = if ($ignore_case and ($original | describe -d | get type) == 'record') {
-        $original | transpose name value | update name { str upcase } | transpose -rid
+        $original | transpose name value 
+            | update name { str upcase } 
+            | transpose -rid
     } else {
         $original
     }
@@ -419,10 +421,28 @@ export def apply-diff [
     $obj
 }
 
-export def --env load-env-diff [diff] {
+export def --env load-env-diff [
+    diff
+    --dry-run
+] {
     let changed = ($diff | get path | each { split row '/' | get 1 } | uniq | str upcase)
-    let env_diff = ($env | apply-diff $diff --skip-test --ignore-case | select -o ...$changed)
-    load-env $env_diff
+    let name_mapping = ($env | transpose name value 
+        | get name 
+        | each {|name| {key: ($name | str upcase), value: $name}} 
+        | transpose -rid)
+    let env_diff = ($env 
+        | apply-diff $diff --skip-test --ignore-case 
+        | select -o ...$changed
+        | items {|name, value| 
+            let new_name = $name_mapping | get -o $name | default $name
+            {name: $new_name, value: $value}
+        } | transpose -rid)
+    if ($dry_run) {
+        $env_diff
+    } else {
+        load-env $env_diff
+        check-env
+    }
 }
 
 export def --env source-sh-env [file_name=".env"] {
@@ -431,4 +451,5 @@ export def --env source-sh-env [file_name=".env"] {
         | where {|line| not ($line | str starts-with '#')} # ignore comments
         | split column '=' name value | transpose -rid 
     load-env $new_env
+    check-env
 }

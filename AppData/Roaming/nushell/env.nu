@@ -91,16 +91,35 @@ $env.ENV_CONVERSIONS = {
 # Path may be a list at this point, so force the new ENV_CONVERSION
 $env.Path = do $path_list.from_string (do $path_list.to_string $env.Path)
 
-export def parse-env [] {
+export def parse-env [
+    --upcase
+] {
     $in | transpose name value | each {|p|
-        let name = ($p.name | str upcase)
-        let conv = ($env.ENV_CONVERSIONS | get -o $name)
+        let name = if $upcase { 
+            ($p.name | str upcase)
+        } else {
+            $p.name
+        }
+        let conv = ($env.ENV_CONVERSIONS | get -o --ignore-case $name)
         if ($conv | is-empty) {
             {name: $name, value: $p.value}
         } else {
             {name: $name, value: (do $conv.from_string $p.value)}
         }
     } | transpose --header-row --as-record
+}
+
+export def check-env [] {
+    let names = $env | transpose name value | get name
+    let duplicates = ($names 
+        | each {|name| $names | where {|it| ($it | str upcase) == ($name | str upcase)}} 
+        | where {($in | length) > 1} 
+        | uniq)
+    if ($duplicates | is-not-empty) {
+        error make {
+            msg: $"Found duplicate env variable: ($duplicates)",
+        }
+    }
 }
 
 alias get-env = ^powershell ~/scripts/lib/GetEnv.ps1
