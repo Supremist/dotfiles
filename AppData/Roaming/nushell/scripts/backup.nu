@@ -1,4 +1,27 @@
+# New api
+#
+# backup mkdir tag root_dir
+# backup clean-tags --remove-empty-folders
+# backup versions 
+# [file1, file2] | backup save tag --root="dir" --force(-f)
+# [file1, file2] | backup restore tag? --move(-m)
+
+# I want a simple api like
+# backup [--tag(t) tag] file1 file2...
+# trash  [--tag(t) tag] file1 file2...
+# restore file
+
+# what if file is already have a backup?
+# - existent beckups should not be removed/overwritten
+# - new unique part should be added to file name
+# - new path should be returned from backup function
+
+
+
 alias _save = save
+
+let backup_dir = $"($nu.home-path)/backup"
+let default_tag = "quicksave"
 
 # Copy $path/$file to $backup_dir/$tag/$file
 # Can accept relative path as $file
@@ -9,9 +32,9 @@ export def save [
     tag: string
     path: string
     file?: string
+    #--root(-r): string
     --force(-f)
 ] {
-    let backup_dir = $"($nu.home-path)/backup"
     let cfg_path = $backup_dir | path join "root_dirs.json"
     let cfg = try { $cfg_path | open } catch { {} }
     let root = if $file == null { pwd } else { $path } | path expand -n
